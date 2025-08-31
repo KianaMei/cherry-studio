@@ -13232,6 +13232,7 @@ __metadata:
     react-error-boundary: "npm:^6.0.0"
     react-hotkeys-hook: "npm:^4.6.1"
     react-i18next: "npm:^14.1.2"
+    react-image-crop: "npm:11.0.7"
     react-infinite-scroll-component: "npm:^6.1.0"
     react-json-view: "npm:^1.21.3"
     react-markdown: "npm:^10.1.0"
@@ -24888,6 +24889,15 @@ __metadata:
     react-native:
       optional: true
   checksum: 10c0/a10426585a3bdfecbec5afc7eeb35df8005fa9d47032dd70dea170adb5506c13ea4e5f417a50669f59c547537d1b3a80e638580987f1c1bbc628ddc8f5974ec9
+  languageName: node
+  linkType: hard
+
+"react-image-crop@npm:11.0.7":
+  version: 11.0.7
+  resolution: "react-image-crop@npm:11.0.7"
+  peerDependencies:
+    react: ">=16.13.1"
+  checksum: 10c0/2adacb940ea51ddbf09671b80fb30bd92e66bad24efaa3ddfe600c588757508ec418da1b9347a2ee121034ba76c6d8b1e37619d06d52baa28854bfe6ef629efa
   languageName: node
   linkType: hard
 
