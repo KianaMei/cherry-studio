@@ -200,13 +200,17 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragState.isDragging) return
     e.preventDefault()
-    const deltaX = e.clientX - dragState.startX
-    const deltaY = e.clientY - dragState.startY
-    setViewTransform(prev => ({
-      ...prev,
-      offsetX: dragState.startOffsetX + deltaX,
-      offsetY: dragState.startOffsetY + deltaY,
-    }))
+    
+    // 使用 requestAnimationFrame 优化拖拽性能
+    requestAnimationFrame(() => {
+      const deltaX = e.clientX - dragState.startX
+      const deltaY = e.clientY - dragState.startY
+      setViewTransform(prev => ({
+        ...prev,
+        offsetX: dragState.startOffsetX + deltaX,
+        offsetY: dragState.startOffsetY + deltaY,
+      }))
+    })
   }, [dragState])
 
   const handlePointerUp = useCallback((e?: React.PointerEvent) => {
