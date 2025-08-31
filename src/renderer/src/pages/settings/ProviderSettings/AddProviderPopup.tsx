@@ -5,6 +5,7 @@ import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
+import ImageEditor from '@renderer/components/ImageEditor'
 import { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
@@ -27,6 +28,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [logo, setLogo] = useState<string | null>(null)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [editorVisible, setEditorVisible] = useState(false)
+  const [editorInitialImage, setEditorInitialImage] = useState<File | string | undefined>(undefined)
   const { t } = useTranslation()
   const uploadRef = useRef<HTMLDivElement>(null)
 
@@ -49,7 +52,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const onOk = async () => {
     setOpen(false)
 
-    // 返回结果，但不包含文件对象，因为文件已经直接保存到 ImageStorage
     const result = {
       name,
       type,
@@ -69,7 +71,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
   const buttonDisabled = name.length === 0
 
-  // 处理内置头像的点击事件
   const handleProviderLogoClick = async (providerId: string) => {
     try {
       const logoUrl = PROVIDER_LOGO_MAP[providerId]
@@ -108,49 +109,54 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
   const items = [
     {
+      key: 'edit',
+      disabled: !logo,
+      label: (
+        <div
+          style={{ width: '100%', textAlign: 'center', opacity: logo ? 1 : 0.5 }}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!logo) return
+            setDropdownOpen(false)
+            setLogoPickerOpen(false)
+            setEditorInitialImage(logo)
+            setEditorVisible(true)
+          }}>
+          {t('settings.general.image_edit', '编辑图片')}
+        </div>
+      )
+    },
+    {
       key: 'upload',
       label: (
-        <Upload
-          customRequest={() => {}}
-          accept="image/png, image/jpeg, image/gif"
-          itemRender={() => null}
-          maxCount={1}
-          onChange={async ({ file }) => {
-            try {
-              const _file = file.originFileObj as File
-              let logoData: string | Blob
+        <div style={{ width: '100%', textAlign: 'center' }}>
+          <Upload
+            customRequest={() => {}}
+            accept="image/png, image/jpeg, image/gif"
+            itemRender={() => null}
+            maxCount={1}
+            onChange={async ({ file }) => {
+              try {
+                const _file = file.originFileObj as File
+                let prepared: File
 
-              if (_file.type === 'image/gif') {
-                logoData = _file
-              } else {
-                logoData = await compressImage(_file)
-              }
-
-              if (provider?.id) {
-                if (logoData instanceof Blob && !(logoData instanceof File)) {
-                  const fileFromBlob = new File([logoData], 'logo.png', { type: logoData.type })
-                  await ImageStorage.set(`provider-${provider.id}`, fileFromBlob)
+                if (_file.type === 'image/gif') {
+                  prepared = _file
                 } else {
-                  await ImageStorage.set(`provider-${provider.id}`, logoData)
+                  const compressed = await compressImage(_file)
+                  prepared = compressed instanceof File ? compressed : new File([compressed], 'logo.png', { type: (compressed as Blob).type })
                 }
-                const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-                setLogo(savedLogo)
-              } else {
-                // 临时保存在内存中，等创建 provider 后会在调用方保存
-                const tempUrl = await new Promise<string>((resolve) => {
-                  const reader = new FileReader()
-                  reader.onload = () => resolve(reader.result as string)
-                  reader.readAsDataURL(logoData)
-                })
-                setLogo(tempUrl)
+
+                setEditorInitialImage(prepared)
+                setEditorVisible(true)
+                setDropdownOpen(false)
+              } catch (error: any) {
+                window.toast.error(error.message)
               }
-              setDropdownOpen(false)
-            } catch (error: any) {
-              window.toast.error(error.message)
-            }
-          }}>
-          <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
-        </Upload>
+            }}>
+            <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
+          </Upload>
+        </div>
       ),
       onClick: (e: any) => {
         e.stopPropagation()
@@ -257,6 +263,35 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           />
         </Form.Item>
       </Form>
+      {/* 图片编辑器 */}
+      <ImageEditor
+        visible={editorVisible}
+        initialImage={editorInitialImage}
+        aspectRatio={1}
+        onCancel={() => {
+          setEditorVisible(false)
+        }}
+        onConfirm={async (editedImage) => {
+          try {
+            if (provider?.id) {
+              await ImageStorage.set(`provider-${provider.id}`, editedImage)
+              const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
+              setLogo(savedLogo)
+            } else {
+              const tempUrl = await new Promise<string>((resolve) => {
+                const reader = new FileReader()
+                reader.onload = () => resolve(reader.result as string)
+                reader.readAsDataURL(editedImage)
+              })
+              setLogo(tempUrl)
+            }
+          } catch (error: any) {
+            window.toast.error(error.message)
+          } finally {
+            setEditorVisible(false)
+          }
+        }}
+      />
     </Modal>
   )
 }
@@ -325,3 +360,4 @@ export default class AddProviderPopup {
     })
   }
 }
+
