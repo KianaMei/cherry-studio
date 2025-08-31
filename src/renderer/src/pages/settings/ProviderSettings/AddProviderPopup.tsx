@@ -267,7 +267,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       <ImageEditor
         visible={editorVisible}
         initialImage={editorInitialImage}
-        aspectRatio={1}
         onCancel={() => {
           setEditorVisible(false)
         }}
