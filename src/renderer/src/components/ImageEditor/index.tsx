@@ -172,10 +172,14 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     })
   }, [fitScale])
 
-  // Handle mouse pan (drag to move image)
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  // Handle pan with Pointer Events + pointer capture (more reliable than mouse events)
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (!isPanning) return
     e.preventDefault()
+    try {
+      const el = e.currentTarget as HTMLElement
+      el.setPointerCapture?.(e.pointerId)
+    } catch {}
     setDragState({
       isDragging: true,
       startX: e.clientX,
@@ -193,7 +197,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     setCompletedCrop(undefined)
   }, [])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragState.isDragging) return
     e.preventDefault()
     const deltaX = e.clientX - dragState.startX
@@ -205,7 +209,13 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     }))
   }, [dragState])
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback((e?: React.PointerEvent) => {
+    try {
+      if (e) {
+        const el = e.currentTarget as HTMLElement
+        el.releasePointerCapture?.(e.pointerId)
+      }
+    } catch {}
     setDragState(prev => ({ ...prev, isDragging: false }))
   }, [])
 
@@ -502,10 +512,10 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         <EditorSection>
           <ImageContainer
             ref={containerRef}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             onContextMenu={handleContextMenu}
             onClick={handleContainerClick}
             onDoubleClick={handleContainerDoubleClick}
