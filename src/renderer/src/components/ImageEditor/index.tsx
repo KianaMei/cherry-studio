@@ -80,6 +80,12 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
 
   const imgRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const imageWrapperRef = useRef<HTMLDivElement>(null)
+  const viewTransformRef = useRef(viewTransform)
+  useEffect(() => { viewTransformRef.current = viewTransform }, [viewTransform])
+  const editStateRef = useRef(editState)
+  useEffect(() => { editStateRef.current = editState }, [editState])
+  const dragRuntimeRef = useRef<{ startX: number; startY: number; startOffsetX: number; startOffsetY: number; lastOffsetX: number; lastOffsetY: number; rafId: number | null }>({ startX: 0, startY: 0, startOffsetX: 0, startOffsetY: 0, lastOffsetX: 0, lastOffsetY: 0, rafId: null })
 
   const onImageLoad = useCallback(() => {
     if (imgRef.current) {
@@ -180,14 +186,24 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
       const el = e.currentTarget as HTMLElement
       el.setPointerCapture?.(e.pointerId)
     } catch {}
+    // 初始化拖拽运行时数据（不触发重渲染）
+    dragRuntimeRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startOffsetX: viewTransformRef.current.offsetX,
+      startOffsetY: viewTransformRef.current.offsetY,
+      lastOffsetX: viewTransformRef.current.offsetX,
+      lastOffsetY: viewTransformRef.current.offsetY,
+      rafId: dragRuntimeRef.current.rafId,
+    }
     setDragState({
       isDragging: true,
       startX: e.clientX,
       startY: e.clientY,
-      startOffsetX: viewTransform.offsetX,
-      startOffsetY: viewTransform.offsetY,
+      startOffsetX: viewTransformRef.current.offsetX,
+      startOffsetY: viewTransformRef.current.offsetY,
     })
-  }, [isPanning, viewTransform.offsetX, viewTransform.offsetY])
+  }, [isPanning])
 
   // Right-click cancels current crop selection
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -200,18 +216,23 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragState.isDragging) return
     e.preventDefault()
-    
-    // 使用 requestAnimationFrame 优化拖拽性能
-    requestAnimationFrame(() => {
-      const deltaX = e.clientX - dragState.startX
-      const deltaY = e.clientY - dragState.startY
-      setViewTransform(prev => ({
-        ...prev,
-        offsetX: dragState.startOffsetX + deltaX,
-        offsetY: dragState.startOffsetY + deltaY,
-      }))
+    const runtime = dragRuntimeRef.current
+    const deltaX = e.clientX - runtime.startX
+    const deltaY = e.clientY - runtime.startY
+    const newOffsetX = runtime.startOffsetX + deltaX
+    const newOffsetY = runtime.startOffsetY + deltaY
+    runtime.lastOffsetX = newOffsetX
+    runtime.lastOffsetY = newOffsetY
+    // 使用 rAF 合批 DOM 更新，避免频繁重绘
+    if (runtime.rafId) cancelAnimationFrame(runtime.rafId)
+    runtime.rafId = requestAnimationFrame(() => {
+      const s = viewTransformRef.current.scale
+      const rot = editStateRef.current.visualRotation
+      if (imageWrapperRef.current) {
+        imageWrapperRef.current.style.transform = `translate(-50%, -50%) translate(${newOffsetX}px, ${newOffsetY}px) scale(${s}) rotate(${rot}deg)`
+      }
     })
-  }, [dragState])
+  }, [dragState.isDragging])
 
   const handlePointerUp = useCallback((e?: React.PointerEvent) => {
     try {
@@ -220,6 +241,10 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         el.releasePointerCapture?.(e.pointerId)
       }
     } catch {}
+    const { lastOffsetX, lastOffsetY, rafId } = dragRuntimeRef.current
+    if (rafId) cancelAnimationFrame(rafId)
+    // 仅在拖拽结束时提交 React 状态，避免过程中的重渲染
+    setViewTransform(prev => ({ ...prev, offsetX: lastOffsetX, offsetY: lastOffsetY }))
     setDragState(prev => ({ ...prev, isDragging: false }))
   }, [])
 
@@ -529,6 +554,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
           >
             {imageSrc ? (
               <ImageWrapper
+                ref={imageWrapperRef}
+                $dragging={dragState.isDragging || isPanning}
                 style={{
                   transform: `translate(-50%, -50%) translate(${viewTransform.offsetX}px, ${viewTransform.offsetY}px) scale(${viewTransform.scale}) rotate(${editState.visualRotation}deg)`,
                 }}
@@ -813,14 +840,15 @@ const ControlLabel = styled.label`
   color: #333;
 `
 
-const ImageWrapper = styled.div`
+const ImageWrapper = styled.div<{ $dragging: boolean }>`
   display: inline-block;
   position: absolute;
   left: 50%;
   top: 50%;
   user-select: none;
-  /* 统一控制旋转动画时长与节奏 */
-  transition: transform 0.18s ease-in-out;
+  will-change: transform;
+  /* 拖拽时关闭过渡，旋转/点击时保留过渡，避免“跟手性差”的拖尾 */
+  transition: ${p => (p.$dragging ? 'none' : 'transform 0.18s ease-in-out')};
 `
 
 const HelpText = styled.div`
