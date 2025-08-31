@@ -7,7 +7,7 @@ import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import ImageEditor from '@renderer/components/ImageEditor'
 import { Provider, ProviderType } from '@renderer/types'
-import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
+import { generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import React, { useEffect, useRef, useState } from 'react'
@@ -138,16 +138,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             onChange={async ({ file }) => {
               try {
                 const _file = file.originFileObj as File
-                let prepared: File
-
-                if (_file.type === 'image/gif') {
-                  prepared = _file
-                } else {
-                  const compressed = await compressImage(_file)
-                  prepared = compressed instanceof File ? compressed : new File([compressed], 'logo.png', { type: (compressed as Blob).type })
-                }
-
-                setEditorInitialImage(prepared)
+                // Use original image for editing; avoid pre-edit compression
+                setEditorInitialImage(_file)
                 setEditorVisible(true)
                 setDropdownOpen(false)
               } catch (error: any) {
@@ -267,6 +259,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       <ImageEditor
         visible={editorVisible}
         initialImage={editorInitialImage}
+        aspectRatio={1}
         onCancel={() => {
           setEditorVisible(false)
         }}
